@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  zaps      Zap[]    // User owns multiple Zaps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Zap {
+  id          String   @id @default(uuid())
+  name        String   // Descriptive name for the Zap
+  isActive    Boolean  @default(true)
+  userId      Int      // Owner of the Zap
+  user        User     @relation(fields: [userId], references: [id])
+  trigger     Trigger?
+  actions     Action[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  zapRun      ZapRun[] //every zap has multiple executions
+}
+
+model Trigger {
+  id            String            @id @default(uuid())
+  zapId         String           @unique
+  triggerId     String
+  configuration Json?            // Store trigger-specific configuration
+  type          AvailableTrigger @relation(fields: [triggerId], references: [id])
+  zap           Zap              @relation(fields: [zapId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Action {
+  id            String   @id @default(uuid())
+  zapId         String   // Reference to parent Zap
+  name          String
+  serviceId     String   // Reference to the service (e.g., "gmail", "slack")
+  actionTypeId  String   // Reference to specific action type within the service
+  configuration Json?    // Store action-specific configuration
+  order         Int      // Sequence order in the workflow
+  zap           Zap     @relation(fields: [zapId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([zapId, order]) // Ensure unique ordering within a Zap
+}
+
+model AvailableTrigger {
+  id          String    @id @default(uuid())
+  name        String
+  serviceId   String    // e.g., "gmail", "slack"
+  description String?
+  triggers    Trigger[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([serviceId, name])
+}
+
+model ZapRun {
+  id String @id @default(uuid())
+  zapId String
+  metaData Json
+  zap Zap @relation(fields: [zapId], references: [id])
+  zapRunOutbox ZapRunOutbox?
+}
+
+model ZapRunOutbox {
+  id String @id @default(uuid())
+  zapRunId String @unique
+  zapRun ZapRun @relation(fields: [zapRunId], references: [id])
+}
